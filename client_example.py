@@ -790,7 +790,7 @@ def main():
                         help='FHIR server base URL')
     parser.add_argument('--patient-id', help='Patient ID (UUID or subject_id) for operations')
     parser.add_argument('--generate-timelines', action='store_true',
-                        help='Generate timelines for all patients')
+                        help='Generate timelines for patient')
     parser.add_argument('--save', action='store_true',
                         help='Save patient data to files (use with --patient-id)')
     parser.add_argument('--output-dir', default='mimic-iv-data/patients',
