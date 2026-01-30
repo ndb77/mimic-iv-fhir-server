@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir \"C:\\\\Users\\\\noahb\\\\Coding\\\\repos\\\\mimic-iv-fhir-server\")",
+      "Bash(dir \"C:\\\\Users\\\\noahb\\\\Coding\\\\repos\\\\mimic-iv-fhir-server\\\\mimic-iv-data\")",
+      "Bash(dir:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(gzip:*)",
+      "Bash(python:*)",
+      "Bash(python3:*)",
+      "Bash(zcat:*)"
+    ]
+  }
+}

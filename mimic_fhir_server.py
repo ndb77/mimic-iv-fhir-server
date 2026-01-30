@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 
 class MimicFhirServer:
-    """FHIR R4 compliant server for MIMIC-IV data"""
+    """FHIR R4 compliant(?) server for MIMIC-IV data"""
 
     def __init__(self, fhir_data_path: str, notes_data_path: str, mapping_file: str = "fhir_patients_with_notes_mapping.json"):
         self.fhir_data_path = Path(fhir_data_path)
@@ -53,7 +53,7 @@ class MimicFhirServer:
         logger.info("MIMIC-IV FHIR Server initialized successfully")
 
     def load_data(self):
-        """Load all FHIR data and discharge notes"""
+        """Load all FHIR data, discharge notes, and radiology notes"""
         # Load patient mapping first
         self._load_patient_mapping()
 
@@ -64,6 +64,10 @@ class MimicFhirServer:
         # Load discharge notes and create DocumentReferences
         logger.info("Loading MIMIC-IV-Note data...")
         self._load_discharge_notes()
+
+        # Load radiology notes and create DocumentReferences
+        logger.info("Loading MIMIC-IV radiology notes...")
+        self._load_radiology_notes()
 
         # Summary
         total_resources = sum(len(resources) for resources in self.resources.values())
@@ -169,10 +173,41 @@ class MimicFhirServer:
                 self.resources['DocumentReference'][doc_ref['id']] = doc_ref
                 doc_refs_created += 1
 
-        logger.info(f"Created {doc_refs_created} DocumentReference resources")
+        logger.info(f"Created {doc_refs_created} discharge DocumentReference resources")
+
+    def _load_radiology_notes(self):
+        """Load radiology notes and create DocumentReference resources"""
+        radiology_file = self.notes_data_path / "radiology.csv.gz"
+
+        if not radiology_file.exists():
+            logger.warning(f"Radiology file not found: {radiology_file}")
+            return
+
+        logger.info(f"Loading {radiology_file.name}")
+
+        # Read radiology notes
+        df = pd.read_csv(radiology_file, compression='gzip')
+
+        # Filter to only patients we have in FHIR
+        df = df[df['subject_id'].astype(str).isin(self.subject_to_uuid.keys())]
+
+        logger.info(f"Found {len(df)} radiology notes for patients with FHIR data")
+
+        # Create DocumentReference for each note
+        doc_refs_created = 0
+        for _, row in df.iterrows():
+            subject_id = str(row['subject_id'])
+            patient_uuid = self.subject_to_uuid.get(subject_id)
+
+            if patient_uuid:
+                doc_ref = self._create_document_reference(row, patient_uuid)
+                self.resources['DocumentReference'][doc_ref['id']] = doc_ref
+                doc_refs_created += 1
+
+        logger.info(f"Created {doc_refs_created} radiology DocumentReference resources")
 
     def _create_document_reference(self, note_row, patient_uuid: str) -> dict:
-        """Create a FHIR DocumentReference from a discharge note"""
+        """Create a FHIR DocumentReference from a clinical note"""
         note_id = note_row['note_id']
         hadm_id = str(note_row['hadm_id']) if pd.notna(note_row['hadm_id']) else None
         charttime = note_row['charttime']
@@ -202,6 +237,15 @@ class MimicFhirServer:
         except:
             date_str = str(charttime)
 
+        # Select LOINC type code based on note_type
+        note_type = note_row.get('note_type', 'DS')
+        if note_type == 'RR':
+            loinc_code = "18726-0"
+            loinc_display = "Radiology studies"
+        else:
+            loinc_code = "18842-5"
+            loinc_display = "Discharge summary"
+
         doc_ref = {
             "resourceType": "DocumentReference",
             "id": doc_ref_id,
@@ -213,8 +257,8 @@ class MimicFhirServer:
             "type": {
                 "coding": [{
                     "system": "http://loinc.org",
-                    "code": "18842-5",
-                    "display": "Discharge summary"
+                    "code": loinc_code,
+                    "display": loinc_display
                 }]
             },
             "category": [{
